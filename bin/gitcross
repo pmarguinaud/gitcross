@@ -13,6 +13,8 @@ gitcross - detect textual conflicts between open pull requests
   --pr N              only these PRs (repeatable)
   --no-drafts         skip draft PRs (drafts are included by default)
   --mirror DIR        local bare clone (default: ./NAME.git in the current directory)
+  --sort KEY          order of the matrix: 'problem' (default, least to most
+                      problematic PR) or 'number'
   --no-fetch          do not update the mirror (and do not list PRs again:
                       reuse the PR list saved by the previous run)
   --out PREFIX        report files PREFIX.html and PREFIX.fods
@@ -51,10 +53,11 @@ use GitCross::Report::FODS;
 
 my %opt = (verbose => 0, drafts => 1, fetch => 1);
 GetOptions (\%opt, 'repo=s', 'base=s@', 'pr=i@', 'drafts!', 'mirror=s', 'fetch!',
-            'out=s', 'verbose|v+', 'help|h')
+            'out=s', 'sort=s', 'verbose|v+', 'help|h')
   or pod2usage (2);
 pod2usage (-verbose => 2) if ($opt{help});
 pod2usage ("--repo is required\n") unless ($opt{repo});
+die "--sort must be 'problem' or 'number'\n" if (defined ($opt{sort}) && $opt{sort} !~ m/^(problem|number)$/o);
 die "--repo must be OWNER/NAME\n" unless ($opt{repo} =~ m{^[\w.-]+/([\w.-]+)$}o);
 my $name = $1;
 
@@ -124,7 +127,7 @@ my $an = GitCross::Analyze->new (git => $git, cache_file => "$mirror/gitcross-ca
                                  progress => $opt{verbose} ? \&info : sub {});
 my $res = $an->run ($prs);
 
-my $meta = { repo => $opt{repo}, generated => strftime ('%Y-%m-%d %H:%M %Z', localtime) };
+my $meta = { repo => $opt{repo}, sort => $opt{sort}, generated => strftime ('%Y-%m-%d %H:%M %Z', localtime) };
 GitCross::Report::HTML::write ("$out.html", $res, $meta);
 GitCross::Report::FODS::write ("$out.fods", $res, $meta);
 

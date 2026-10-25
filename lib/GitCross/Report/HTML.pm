@@ -4,6 +4,7 @@ package GitCross::Report::HTML;
 
 use strict;
 use warnings;
+use GitCross::Analyze;
 
 sub _e
 {
@@ -78,13 +79,15 @@ sub write
 <p class="legend"><span class="ok">clean</span><span class="ovl">same files, merges cleanly</span><span class="bad">conflict</span><span class="na">no common file</span>
 Diagonal: PR against its base branch. Diagonal number: files conflicting with the base. Other cells: number of conflicting files for the pair.</p>
 EOF
+  $h =~ s{</p>\n\z}{ Rows and columns are sorted from the least to the most problematic PR (see the Problems column).</p>\n}
+    unless (($meta->{sort} // q{problem}) eq q{number});
 
   $h .= "<p>Base branches: " . join (', ', map { sprintf ('<a href="#base-%s">%s</a> (%d)', _e ($_->{name}), _e ($_->{name}), scalar (@{ $_->{prs} })) } @{ $res->{bases} })
       . ". See also <a href=\"#prs\">all PRs</a> and <a href=\"#files\">most conflicting files</a>.</p>\n";
 
   for my $bb (@{ $res->{bases} })
     {
-      my @n = @{ $bb->{prs} };
+      my @n = GitCross::Analyze::matrix_order ($bb, $meta->{sort});
       my $pairs = $bb->{pairs};
       $h .= sprintf ("<h2 id=\"base-%s\">Base <code>%s</code></h2>\n", _e ($bb->{name}), _e ($bb->{name}));
       $h .= sprintf ("<p class=\"mut\">At %s. %d PRs.</p>\n", substr ($bb->{sha}, 0, 12), scalar (@n));
@@ -100,7 +103,7 @@ EOF
       # Matrix
       $h .= "<div class=\"wrap\"><table class=\"matrix\"><tr><th>PR</th>"
           . join ('', map { '<th>' . $prlink->($_) . '</th>' } @n)
-          . "<th class=\"ttl\">Title</th><th class=\"who\">Contributor</th></tr>\n";
+          . "<th class=\"ttl\">Title</th><th class=\"who\">Contributor</th><th class=\"who\">Problems</th></tr>\n";
       for my $i (@n)
         {
           $h .= '<tr><th>' . $prlink->($i) . '</th>';
@@ -132,8 +135,9 @@ EOF
                                  _e (join ("\n", @{ $p->{common} })), $x, $y);
                 }
             }
-          $h .= sprintf (qq{<td class="ttl" title="%s">%s</td><td class="who">%s</td></tr>\n},
-                         _e ($prs->{$i}{title}), _e ($prs->{$i}{title}), _e ($prs->{$i}{author}));
+          $h .= sprintf (qq{<td class="ttl" title="%s">%s</td><td class="who">%s</td><td class="who">%s</td></tr>\n},
+                         _e ($prs->{$i}{title}), _e ($prs->{$i}{title}), _e ($prs->{$i}{author}),
+                         _e (GitCross::Analyze::problems_text ($prs->{$i})));
         }
       $h .= "</table></div>\n";
 

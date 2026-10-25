@@ -280,8 +280,9 @@ could reuse to avoid a second big clone?
 | Spreadsheet| `.fods` with colours (plus the HTML page) |
 | Repos      | One repository per run (`--repo OWNER/NAME`) |
 | Mirror     | Bare clone `./NAME.git` in the current directory (`--mirror` to override) |
-| Repo       | `/home/marguina/gitcross` initialized as a git repo (nothing committed yet) |
+| Repo       | `/home/marguina/gitcross` initialized as a git repo (first commit 3fcb03b) |
 | Matrix     | Extra columns with the PR title and the contributor (GitHub login) |
+| Sort       | Matrix sorted from the least to the most problematic PR (conflicts with base + conflicting PRs, then conflicting files, then overlaps), with a "Problems" column; `--sort number` for PR order |
 
 ### 6.2 Usage
 

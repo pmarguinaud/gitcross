@@ -92,6 +92,9 @@ like ($pairs->{'1,6'}{note}, qr/approximate/, '1 / 6 flagged approximate');
 ok (! exists $pairs->{'1,7'}, 'PRs on different bases not compared');
 
 is_deeply ($dev->{ready}, [3, 5], 'PRs 3 and 5 mergeable now');
+is_deeply ([@{ $dev->{by_problem} }[0, 1]], [5, 3], 'least problematic first: 5 (none), 3 (overlaps only)');
+is ($dev->{by_problem}[-1], 6, 'most problematic last: 6 (base + 3 PRs)');
+is (GitCross::Analyze::problems_text ($p->{6}), 'base, 3 PRs, 4 files, 1 overlap', 'problems text');
 is_deeply ($dev->{clusters}, [[1, 2, 4, 6]], 'conflict cluster');
 is ($res->{hot_files}[0]{path}, 'f.txt', 'f.txt is the hottest file');
 

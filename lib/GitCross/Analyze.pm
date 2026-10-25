@@ -214,7 +214,59 @@ sub _summarize
       push @clusters, [sort { $a <=> $b } @c];
     }
 
-  return (ready => \@ready, clusters => \@clusters);
+  # Problem counters of each PR, and PRs ordered from the least to the most
+  # problematic: number of conflicts (base + PRs), then conflicting files,
+  # then overlaps without conflict
+  for my $p (@$list)
+    {
+      $p->{problems} = { base => $p->{base_status} eq 'clean' ? 0 : 1,
+                         prs => 0, files => scalar (@{ $p->{base_conflicts} }), overlaps => 0 };
+    }
+  my %pr = map { ($_->{number} => $_) } @$list;
+  for my $p (values %$pairs)
+    {
+      for my $n ($p->{a}, $p->{b})
+        {
+          my $c = $pr{$n}{problems};
+          if ($p->{status} eq 'conflict')
+            {
+              $c->{prs}++;
+              $c->{files} += @{ $p->{files} };
+            }
+          else
+            {
+              $c->{overlaps}++;
+            }
+        }
+    }
+  my $key = sub { my $c = $_[0]{problems}; ($c->{base} + $c->{prs}, $c->{files}, $c->{overlaps}) };
+  my @by_problem = map { $_->{number} } sort
+    {
+      my @x = $key->($a);
+      my @y = $key->($b);
+      $x[0] <=> $y[0] || $x[1] <=> $y[1] || $x[2] <=> $y[2] || $a->{number} <=> $b->{number}
+    } @$list;
+
+  return (ready => \@ready, clusters => \@clusters, by_problem => \@by_problem);
+}
+
+# Short text describing the problem counters of a PR
+sub problems_text
+{
+  my $c = shift->{problems};
+  my @t;
+  push @t, 'base' if ($c->{base});
+  push @t, "$c->{prs} PR" . ($c->{prs} > 1 ? 's' : '') if ($c->{prs});
+  push @t, "$c->{files} file" . ($c->{files} > 1 ? 's' : '') if ($c->{files});
+  push @t, "$c->{overlaps} overlap" . ($c->{overlaps} > 1 ? 's' : '') if ($c->{overlaps});
+  return @t ? join (', ', @t) : 'none';
+}
+
+# PR numbers of a base branch, in the order requested for the reports
+sub matrix_order
+{
+  my ($bb, $sort) = @_;
+  return @{ ($sort // 'problem') eq 'number' ? $bb->{prs} : $bb->{by_problem} };
 }
 
 # Files involved in conflicts, most frequent first

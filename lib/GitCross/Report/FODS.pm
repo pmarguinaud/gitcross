@@ -5,6 +5,7 @@ package GitCross::Report::FODS;
 
 use strict;
 use warnings;
+use GitCross::Analyze;
 
 sub _e
 {
@@ -83,8 +84,8 @@ sub write
   # One matrix per base
   for my $bb (@{ $res->{bases} })
     {
-      my @n = @{ $bb->{prs} };
-      my @rows = ([ $H->(q{PR}), (map { +{ %{ $pr->($_) }, s => 'hdr' } } @n), $H->(q{Title}, q{Contributor}) ]);
+      my @n = GitCross::Analyze::matrix_order ($bb, $meta->{sort});
+      my @rows = ([ $H->(q{PR}), (map { +{ %{ $pr->($_) }, s => 'hdr' } } @n), $H->(q{Title}, q{Contributor}, q{Problems}) ]);
       for my $i (@n)
         {
           my @r = ({ %{ $pr->($i) }, s => 'hdr' });
@@ -103,9 +104,9 @@ sub write
                      : $p->{status} eq 'conflict' ? { v => scalar (@{ $p->{files} }), s => 'bad' }
                      : { v => '=', s => 'ovl' };
             }
-          push @rows, [@r, $prs->{$i}{title}, $prs->{$i}{author}];
+          push @rows, [@r, $prs->{$i}{title}, $prs->{$i}{author}, GitCross::Analyze::problems_text ($prs->{$i})];
         }
-      push @sheets, _sheet ("Matrix $bb->{name}", [q{s}, (map { q{n} } @n), qw (w m)], @rows);
+      push @sheets, _sheet ("Matrix $bb->{name}", [q{s}, (map { q{n} } @n), qw (w m m)], @rows);
     }
 
   # PRs
