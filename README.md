@@ -11,6 +11,19 @@ shows which PRs can be merged now and in which order problems will appear.
 
 Results are written as an HTML page and a LibreOffice spreadsheet (`.fods`).
 
+## Sample reports
+
+Reports produced for [ACCORD-NWP/IAL](https://github.com/ACCORD-NWP/IAL) on
+2026-10-25 (29 open PRs):
+
+- [samples/IAL.html](samples/IAL.html): HTML report
+  ([view it rendered](https://htmlpreview.github.io/?https://github.com/pmarguinaud/gitcross/blob/main/samples/IAL.html);
+  GitHub shows HTML files as source, so you can also download it and open it in a browser)
+- [samples/IAL.fods](samples/IAL.fods): spreadsheet; download it and open it
+  with LibreOffice Calc
+
+They are a snapshot: the PRs have changed since.
+
 ## Requirements
 
 - git >= 2.38 (for `git merge-tree --write-tree`)
@@ -120,6 +133,7 @@ lib/GitCross/Report/FODS.pm   spreadsheet report
 run_ial.sh                    one-command run for ACCORD-NWP/IAL
 t/analyze.t                   tests on a synthetic repository
 DESIGN.md                     design notes and discussion
+samples/                      sample reports for ACCORD-NWP/IAL
 ```
 
 Run the tests with `prove t/`.
