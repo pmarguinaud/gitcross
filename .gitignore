@@ -1,0 +1,4 @@
+# local mirrors and generated reports
+*.git/
+*-gitcross.html
+*-gitcross.fods

@@ -1,0 +1,140 @@
+#!/usr/bin/env perl
+
+=head1 NAME
+
+gitcross - detect textual conflicts between open pull requests
+
+=head1 SYNOPSIS
+
+  gitcross --repo ACCORD-NWP/IAL [options]
+
+  --repo OWNER/NAME   GitHub repository (required)
+  --base BRANCH       only PRs targeting BRANCH (repeatable)
+  --pr N              only these PRs (repeatable)
+  --no-drafts         skip draft PRs (drafts are included by default)
+  --mirror DIR        local bare clone (default: ./NAME.git in the current directory)
+  --no-fetch          do not update the mirror (and do not list PRs again:
+                      reuse the PR list saved by the previous run)
+  --out PREFIX        report files PREFIX.html and PREFIX.fods
+                      (default: ./NAME-gitcross)
+  --verbose, -v       more messages (twice: show git commands)
+  --help
+
+=head1 DESCRIPTION
+
+Each open PR is merged in memory (git merge-tree, nothing is checked out
+nor pushed) with its base branch, then with every other PR targeting the
+same base branch and changing at least one common file. The result is
+written as an HTML page and a LibreOffice spreadsheet.
+
+The first run clones the needed branches and PR heads; later runs only
+fetch what changed, and reuse cached merge results.
+
+=cut
+
+use strict;
+use warnings;
+use FindBin;
+use lib "$FindBin::RealBin/../lib";
+use Getopt::Long;
+use Pod::Usage;
+use POSIX qw (strftime);
+use JSON::PP;
+use File::Basename qw (basename);
+use Cwd qw (getcwd);
+
+use GitCross::Git;
+use GitCross::GitHub;
+use GitCross::Analyze;
+use GitCross::Report::HTML;
+use GitCross::Report::FODS;
+
+my %opt = (verbose => 0, drafts => 1, fetch => 1);
+GetOptions (\%opt, 'repo=s', 'base=s@', 'pr=i@', 'drafts!', 'mirror=s', 'fetch!',
+            'out=s', 'verbose|v+', 'help|h')
+  or pod2usage (2);
+pod2usage (-verbose => 2) if ($opt{help});
+pod2usage ("--repo is required\n") unless ($opt{repo});
+die "--repo must be OWNER/NAME\n" unless ($opt{repo} =~ m{^[\w.-]+/([\w.-]+)$}o);
+my $name = $1;
+
+my $mirror = $opt{mirror} // getcwd () . "/$name.git";
+my $out    = $opt{out}    // getcwd () . "/$name-gitcross";
+my $git    = GitCross::Git->new (dir => $mirror, verbose => $opt{verbose});
+my $prlist = "$mirror/gitcross-prs.json";
+
+sub info { print STDERR "@_\n" }
+
+# List PRs
+my $prs;
+if ($opt{fetch})
+  {
+    info ("Listing open PRs of $opt{repo}");
+    $prs = GitCross::GitHub::list_open_prs ($opt{repo});
+  }
+else
+  {
+    open (my $fh, '<', $prlist) or die "No saved PR list in $mirror; run without --no-fetch first\n";
+    local $/;
+    $prs = JSON::PP->new->utf8->decode (<$fh>);
+  }
+my $total = @$prs;
+
+if ($opt{base})
+  {
+    my %b = map { ($_ => 1) } @{ $opt{base} };
+    $prs = [ grep { $b{$_->{base}} } @$prs ];
+  }
+if ($opt{pr})
+  {
+    my %n = map { ($_ => 1) } @{ $opt{pr} };
+    $prs = [ grep { $n{$_->{number}} } @$prs ];
+  }
+$prs = [ grep { ! $_->{draft} } @$prs ] unless ($opt{drafts});
+info (sprintf ("%d open PRs, %d selected", $total, scalar (@$prs)));
+die "No PR to analyze\n" unless (@$prs);
+
+# Update the mirror: base branches and PR heads only
+my %bases = map { ($_->{base} => 1) } @$prs;
+if ($opt{fetch})
+  {
+    $git->init_mirror ("https://github.com/$opt{repo}.git");
+    info ("Fetching " . scalar (keys %bases) . " base branches and " . scalar (@$prs)
+        . " PR heads into $mirror (the first time can take a while)");
+    $git->fetch ((map { "+refs/heads/$_:refs/heads/$_" } sort keys %bases),
+                 (map { "+refs/pull/$_->{number}/head:refs/pr/$_->{number}" } @$prs));
+    open (my $fh, '>', $prlist) or die "Cannot write $prlist: $!\n";
+    print $fh JSON::PP->new->utf8->canonical->pretty->encode ($prs);
+    close ($fh);
+  }
+
+for my $p (@$prs)
+  {
+    my $sha = $git->rev_parse ("refs/pr/$p->{number}")
+      or die "PR #$p->{number} not found in the mirror; run without --no-fetch\n";
+    if ($sha ne $p->{sha})
+      {
+        info ("Warning: PR #$p->{number} was updated during the run; using " . substr ($sha, 0, 12));
+        $p->{sha} = $sha;
+      }
+  }
+
+# Analyze
+my $an = GitCross::Analyze->new (git => $git, cache_file => "$mirror/gitcross-cache.json",
+                                 progress => $opt{verbose} ? \&info : sub {});
+my $res = $an->run ($prs);
+
+my $meta = { repo => $opt{repo}, generated => strftime ('%Y-%m-%d %H:%M %Z', localtime) };
+GitCross::Report::HTML::write ("$out.html", $res, $meta);
+GitCross::Report::FODS::write ("$out.fods", $res, $meta);
+
+# Short summary on the terminal
+for my $bb (@{ $res->{bases} })
+  {
+    my @conf = grep { $_->{status} eq 'conflict' } values %{ $bb->{pairs} };
+    info (sprintf ("%-20s %3d PRs, %3d conflicting with base, %3d conflicting pairs, %3d mergeable now",
+                   $bb->{name}, scalar (@{ $bb->{prs} }),
+                   scalar (grep { $res->{prs}{$_}{base_status} ne 'clean' } @{ $bb->{prs} }),
+                   scalar (@conf), scalar (@{ $bb->{ready} })));
+  }
+info ("Reports: $out.html $out.fods");
