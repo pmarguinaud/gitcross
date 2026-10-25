@@ -16,9 +16,8 @@ Results are written as an HTML page and a LibreOffice spreadsheet (`.fods`).
 Reports produced for [ACCORD-NWP/IAL](https://github.com/ACCORD-NWP/IAL) on
 2026-10-25 (29 open PRs):
 
-- [samples/IAL.html](samples/IAL.html): HTML report
-  ([view it rendered](https://htmlpreview.github.io/?https://github.com/pmarguinaud/gitcross/blob/main/samples/IAL.html);
-  GitHub shows HTML files as source, so you can also download it and open it in a browser)
+- [samples/IAL.html](https://pmarguinaud.github.io/gitcross/samples/IAL.html): HTML report,
+  served by GitHub Pages ([source](samples/IAL.html))
 - [samples/IAL.fods](samples/IAL.fods): spreadsheet; download it and open it
   with LibreOffice Calc
 
