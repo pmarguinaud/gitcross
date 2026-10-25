@@ -283,6 +283,7 @@ could reuse to avoid a second big clone?
 | Repo       | `/home/marguina/gitcross` initialized as a git repo (first commit 3fcb03b) |
 | Matrix     | Extra columns with the PR title and the contributor (GitHub login) |
 | Sort       | Matrix sorted from the least to the most problematic PR (conflicts with base + conflicting PRs, then conflicting files, then overlaps), with a "Problems" column; `--sort number` for PR order |
+| GitHub links | Per pair: direct diff of the two PR heads (`compare/A..B`); per common file: changes of each PR (`pull/N/files#diff-...`) and the diff at that file. HTML pairs table, and spreadsheet sheets "Pairs" and "Pair files" |
 
 ### 6.2 Usage
 

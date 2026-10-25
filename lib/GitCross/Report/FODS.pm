@@ -6,6 +6,7 @@ package GitCross::Report::FODS;
 use strict;
 use warnings;
 use GitCross::Analyze;
+use GitCross::GitHub;
 
 sub _e
 {
@@ -134,20 +135,35 @@ sub write
   push @sheets, _sheet ('PRs', [qw (s w m m s s s s w m)], @prows);
 
   # Pairs
-  my @rows = ([$H->('Base', 'PR A', 'PR B', 'Status', 'Conflicting files', 'Common files', 'Note')]);
+  # Pairs, and one row per file common to a pair, with links to GitHub
+  my @rows = ([$H->('Base', 'PR A', 'PR B', 'Status', 'GitHub diff', 'Conflicting files', 'Common files', 'Note')]);
+  my @frows = ([$H->('Base', 'PR A', 'PR B', 'File', 'Conflict', 'Changes in A', 'Changes in B', 'Diff A..B')]);
   for my $bb (@{ $res->{bases} })
     {
       for my $p (sort { ($a->{status} eq 'conflict' ? 0 : 1) <=> ($b->{status} eq 'conflict' ? 0 : 1)
                         || $a->{a} <=> $b->{a} || $a->{b} <=> $b->{b} } values %{ $bb->{pairs} })
         {
           my $bad = $p->{status} eq 'conflict';
+          my ($sa, $sb) = ($prs->{$p->{a}}{sha}, $prs->{$p->{b}}{sha});
           push @rows, [ $bb->{name}, $pr->($p->{a}), $pr->($p->{b}),
                         { v => $bad ? 'conflict' : 'merges cleanly', s => $bad ? 'bad' : 'ovl' },
+                        { v => "diff #$p->{a}..#$p->{b}", href => GitCross::GitHub::compare_url ($repo, $sa, $sb) },
                         join ("\n", map { "$_->{path} ($_->{type})" } @{ $p->{files} }),
                         join ("\n", @{ $p->{common} }), $p->{note} // '' ];
+
+          my %type = map { ($_->{path} => $_->{type}) } @{ $p->{files} };
+          for my $f (sort { (exists $type{$a} ? 0 : 1) <=> (exists $type{$b} ? 0 : 1) || $a cmp $b } @{ $p->{common} })
+            {
+              push @frows, [ $bb->{name}, $pr->($p->{a}), $pr->($p->{b}), $f,
+                             exists $type{$f} ? { v => $type{$f}, s => 'bad' } : { v => 'no conflict', s => 'ovl' },
+                             { v => "#$p->{a}", href => GitCross::GitHub::pr_file_url ($prs->{$p->{a}}{url}, $f) },
+                             { v => "#$p->{b}", href => GitCross::GitHub::pr_file_url ($prs->{$p->{b}}{url}, $f) },
+                             { v => 'diff', href => GitCross::GitHub::compare_url ($repo, $sa, $sb, $f) } ];
+            }
         }
     }
-  push @sheets, _sheet ('Pairs', [qw (m s s m w w w)], @rows);
+  push @sheets, _sheet ('Pairs', [qw (m s s m m w w w)], @rows);
+  push @sheets, _sheet ('Pair files', [qw (m s s w m s s s)], @frows);
 
   # Files
   @rows = ([$H->('File', 'Conflicts', 'PRs conflicting with base', 'Conflicting pairs')]);

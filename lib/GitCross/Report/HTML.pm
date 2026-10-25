@@ -5,6 +5,7 @@ package GitCross::Report::HTML;
 use strict;
 use warnings;
 use GitCross::Analyze;
+use GitCross::GitHub;
 
 sub _e
 {
@@ -64,6 +65,24 @@ sub write
       my $name = '<code>' . _e ($f->{path}) . '</code>';
       $name = sprintf ('<a href="%s">%s</a>', _e ($url), $name) if ($url);
       return $name . (defined ($f->{type}) ? ' <span class="mut">(' . _e ($f->{type}) . ')</span>' : '');
+    };
+
+  # GitHub pages for a pair: direct diff between the two PR heads, and the
+  # changes of each PR to a given file
+  my $cmpurl = sub
+    {
+      my ($p, $path) = @_;
+      return GitCross::GitHub::compare_url ($repo, $prs->{$p->{a}}{sha}, $prs->{$p->{b}}{sha}, $path);
+    };
+  my $pairfile = sub
+    {
+      my ($p, $path, $html) = @_;
+      return $html unless ($repo);
+      return sprintf ('%s <span class="mut">[changes in <a href="%s">#%d</a>, <a href="%s">#%d</a>; '
+                    . '<a href="%s">diff</a>]</span>', $html,
+                      _e (GitCross::GitHub::pr_file_url ($prs->{$p->{a}}{url}, $path)), $p->{a},
+                      _e (GitCross::GitHub::pr_file_url ($prs->{$p->{b}}{url}, $path)), $p->{b},
+                      _e ($cmpurl->($p, $path)));
     };
 
   my $nconf = grep { $_->{base_status} ne 'clean' } values %$prs;
@@ -147,15 +166,16 @@ EOF
       if (@pl)
         {
           $h .= "<h3>PR pairs touching common files</h3>\n<div class=\"wrap\"><table>"
-              . "<tr><th>Pair</th><th>Status</th><th>Conflicting files</th><th>Common files</th><th>Note</th></tr>\n";
+              . "<tr><th>Pair</th><th>Status</th><th>On GitHub</th><th>Conflicting files</th><th>Common files</th><th>Note</th></tr>\n";
           for my $p (@pl)
             {
               my $bad = $p->{status} eq 'conflict';
-              $h .= sprintf ("<tr id=\"pair-%d-%d\"><td>%s / %s</td><td class=\"%s\">%s</td><td>%s</td><td>%s</td><td class=\"mut\">%s</td></tr>\n",
+              $h .= sprintf ("<tr id=\"pair-%d-%d\"><td>%s / %s</td><td class=\"%s\">%s</td><td>%s</td><td>%s</td><td>%s</td><td class=\"mut\">%s</td></tr>\n",
                              $p->{a}, $p->{b}, $prlink->($p->{a}), $prlink->($p->{b}),
                              $bad ? 'bad' : 'ovl', $bad ? 'conflict' : 'merges cleanly',
-                             join ('<br>', map { $filelink->($bb->{name}, $_) } @{ $p->{files} }),
-                             join ('<br>', map { '<code>' . _e ($_) . '</code>' } @{ $p->{common} }),
+                             $repo ? sprintf ('<a href="%s">diff #%d..#%d</a>', _e ($cmpurl->($p)), $p->{a}, $p->{b}) : '',
+                             join ('<br>', map { $pairfile->($p, $_->{path}, $filelink->($bb->{name}, $_)) } @{ $p->{files} }),
+                             join ('<br>', map { $pairfile->($p, $_, '<code>' . _e ($_) . '</code>') } @{ $p->{common} }),
                              _e ($p->{note}));
             }
           $h .= "</table></div>\n";
@@ -211,7 +231,10 @@ EOF
   $h .= "<p class=\"mut\">Notes: only textual (git) conflicts are detected; PRs that merge cleanly "
       . "but break the build together are not. Pairs are only tested when both PRs target the same base "
       . "and change at least one common file. A pair is tested by merging the first PR (one that merges "
-      . "cleanly into the base) into the base, then merging the other PR on top of it.</p>\n";
+      . "cleanly into the base) into the base, then merging the other PR on top of it. "
+      . "On GitHub, &quot;diff&quot; is the direct difference between the two PR heads: it also contains "
+      . "the changes of the base branch when the two PRs are not based on the same commit; "
+      . "&quot;changes in #N&quot; shows what PR N does to the file.</p>\n";
 
   open (my $fh, '>:encoding(UTF-8)', $file) or die "Cannot write $file: $!\n";
   print $fh "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">\n"

@@ -113,6 +113,12 @@ GitCross::Report::HTML::write ("$dir/r.html", $res, { repo => 'o/r', generated =
 GitCross::Report::FODS::write ("$dir/r.fods", $res, { repo => 'o/r', generated => 'now' });
 ok (-s "$dir/r.html", 'HTML written');
 ok (-s "$dir/r.fods", 'FODS written');
+open (my $fh, '<', "$dir/r.fods") or die;
+my $fods = do { local $/; <$fh> };
+like ($fods, qr{table:name="Pair files"}, 'FODS has a Pair files sheet');
+my ($s1, $s2) = @sha{1, 2};
+like ($fods, qr{xlink:href="https://github.com/o/r/compare/$s1\.\.$s2#diff-[0-9a-f]{64}"}, 'FODS links to the pair diff of a file');
+like ($fods, qr{xlink:href="https://example.org/1/files#diff-[0-9a-f]{64}"}, 'FODS links to the changes of a PR to a file');
 if (system ('xmllint --version >/dev/null 2>&1') == 0)
   {
     is (system ('xmllint', '--noout', "$dir/r.fods"), 0, 'FODS is well-formed XML');
